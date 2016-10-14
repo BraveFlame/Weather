@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.preference.PreferenceManager;
 import android.text.TextUtils;
 import android.view.View;
@@ -12,6 +14,7 @@ import android.view.Window;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.coolweather.R;
 import com.coolweather.service.AutoUpdateService;
@@ -21,6 +24,7 @@ import com.coolweather.utility.Utility;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+
 
 /*
 聚合数据天气预报key 56ccb10d4a6633f35ddc7cf8ba480d45
@@ -54,6 +58,17 @@ public class WeatherActivity extends Activity implements OnClickListener {
      */
     private Button switchCity, refreshWeather;
     private TextView setting;
+    private double t;
+    private boolean isOn;
+    String tt;
+    private Handler handler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            if (msg.what == 110) {
+                showWeather();
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -74,13 +89,12 @@ public class WeatherActivity extends Activity implements OnClickListener {
         currentDateText = (TextView) findViewById(R.id.current_date);
         String countyName = getIntent().getStringExtra("county_name");
         //String countyCode = getIntent().getStringExtra("county_code");
-
+        setting = (TextView) findViewById(R.id.set_update_time);
         switchCity = (Button) findViewById(R.id.switch_city);
         refreshWeather = (Button) findViewById(R.id.refresh_weather);
-        setting = (TextView) findViewById(R.id.set_update_time);
         switchCity.setOnClickListener(this);
         refreshWeather.setOnClickListener(this);
-        //setting.setOnClickListener(this);
+        setting.setOnClickListener(this);
         if (!TextUtils.isEmpty(countyName)) {
             // 有县级代号就去查天气
             publishText.setText("同步中...");
@@ -107,14 +121,11 @@ public class WeatherActivity extends Activity implements OnClickListener {
         }
     }
 
-
     /*
      * 根据传入的地址和类型去向服务器查询天气信息
      */
     private void queryFormServer(final String address, final String type) {
-
         HttpUtil.sendHttpRequest(address, new HttpCallbackListener() {
-
             @Override
             public void onFinish(final String response) {
                 if (type.equals("add")) {
@@ -147,9 +158,9 @@ public class WeatherActivity extends Activity implements OnClickListener {
      * 从SharePreferences文件读取存储天气信息，并显示到界面
      */
     private void showWeather() {
+
         SharedPreferences pref = PreferenceManager
                 .getDefaultSharedPreferences(this);
-
         cityNameText.setText(pref.getString("city_name", ""));
         temp1Text.setText(pref.getString("temp1", ""));
         temp2View.setText(pref.getString("temp2", ""));
@@ -161,6 +172,7 @@ public class WeatherActivity extends Activity implements OnClickListener {
         currentDateText.setText(pref.getString("current_date", ""));
         weatherInfoLayout.setVisibility(View.VISIBLE);
         cityNameText.setVisibility(View.VISIBLE);
+        Toast.makeText(this, "successful!", Toast.LENGTH_SHORT).show();
         //Intent ifUpdate=getIntent();
         //	boolean[] ifChoose=ifUpdate.getBooleanArrayExtra("ifchoose");
         //	if(ifChoose[0]==true){
@@ -180,8 +192,8 @@ public class WeatherActivity extends Activity implements OnClickListener {
                 intent.putExtra("from_weather_activity", true);
                 startActivity(intent);
                 finish();
-
                 break;
+
             case R.id.refresh_weather:
                 publishText.setText("同步中...");
                 SharedPreferences pref = PreferenceManager
@@ -190,14 +202,53 @@ public class WeatherActivity extends Activity implements OnClickListener {
                 if (!TextUtils.isEmpty(countyName)) {
                     queryWeather(countyName);
                 }
-
                 break;
-//		case R.id.set_update_time:
-//			Intent UpdateIntent=new Intent(this,UpdateTimeActivity.class);
-//			startActivity(UpdateIntent);
+            case R.id.set_update_time:
+                Intent updateIntent = new Intent(this, UpdateTimeActivity.class);
+                startActivityForResult(updateIntent, 1);
             default:
                 break;
         }
+
+    }
+//接收更改设置的参数
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        switch (requestCode) {
+            case 1:
+
+                if (resultCode == RESULT_OK) {
+
+                    tt=data.getStringExtra("time");
+                 try{
+                     t=Double.valueOf(tt).doubleValue();
+
+                 }catch (NumberFormatException e){
+                     Toast.makeText(this,"格式错误！",Toast.LENGTH_SHORT).show();
+                 }
+                    //Toast.makeText(this,data.getStringExtra("time"),Toast.LENGTH_SHORT).show();
+                    isOn = data.getBooleanExtra("isOn", false);
+                    if (isOn == true) {
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    Thread.sleep((long) t * 60 * 60 * 1000);
+                                    Message message = new Message();
+                                    message.what = 110;
+                                    handler.sendMessage(message);
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }).start();
+                    }
+                }
+                break;
+            default:
+                break;
+        }
+
 
     }
 

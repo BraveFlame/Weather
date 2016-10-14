@@ -18,7 +18,6 @@ import java.net.URLEncoder;
 public class AutoUpdateService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
-
         return null;
     }
     @Override
@@ -30,7 +29,7 @@ public class AutoUpdateService extends Service {
             }
         }).start();
         AlarmManager manager = (AlarmManager) getSystemService(ALARM_SERVICE);
-        int anHour = 1* 60 * 60 * 1000;// 延时更新后台
+        int anHour = 1* 60 * 1000;// 延时更新后台
         //开启服务后广播onReceive执行
         long triggerAtTime =  SystemClock.elapsedRealtime() + anHour;
         Intent i = new Intent(this, AutoUpdateReceiver.class);
@@ -52,6 +51,7 @@ public class AutoUpdateService extends Service {
                 @Override
                 public void onFinish(String response) {
                     Utility.handleWeatherResponse(AutoUpdateService.this, response);
+
                 }
                 @Override
                 public void onError(Exception e) {
