@@ -8,6 +8,7 @@ import android.os.IBinder;
 import android.os.SystemClock;
 import android.preference.PreferenceManager;
 
+import com.coolweather.receiver.AutoUpdateReceiver;
 import com.coolweather.utility.HttpCallbackListener;
 import com.coolweather.utility.HttpUtil;
 import com.coolweather.utility.Utility;
@@ -30,8 +31,9 @@ public class AutoUpdateService extends Service {
         }).start();
         AlarmManager manager = (AlarmManager) getSystemService(ALARM_SERVICE);
         int anHour = 1* 60 * 60 * 1000;// 延时更新后台
-        long triggerAtTime = (long) (SystemClock.elapsedRealtime() + anHour);
-        Intent i = new Intent(this, AutoUpdateService.class);
+        //开启服务后广播onReceive执行
+        long triggerAtTime =  SystemClock.elapsedRealtime() + anHour;
+        Intent i = new Intent(this, AutoUpdateReceiver.class);
         PendingIntent pi = PendingIntent.getBroadcast(this, 0, i, 0);
         manager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtTime, pi);
         return super.onStartCommand(intent, flags, startId);
