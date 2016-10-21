@@ -8,6 +8,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.preference.PreferenceManager;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.Window;
@@ -31,7 +32,8 @@ import java.net.URLEncoder;
 http://op.juhe.cn/onebox/weather/query?cityname=%E6%B8%A9%E5%B7%9E&key=您申请的KEY
  */
 public class WeatherActivity extends Activity implements OnClickListener {
-
+    private SharedPreferences pref;
+    private SharedPreferences.Editor editor;
     private LinearLayout weatherInfoLayout;
     /*
      * 用于显示城市名
@@ -59,14 +61,20 @@ public class WeatherActivity extends Activity implements OnClickListener {
     private Button switchCity, refreshWeather;
     private TextView setting;
     private double t;
-    private boolean isOn;
+    private boolean isOn = false;
+    Message message = new Message();
     String tt;
+
     private Handler handler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
-            if (msg.what == 110) {
-                showWeather();
+            switch(msg.what){
+                case 1:
+                    showWeather();
+                    handler.sendEmptyMessageDelayed(msg.what,(long)(t*60*60*1000));
+                default:break;
             }
+
         }
     };
 
@@ -76,7 +84,9 @@ public class WeatherActivity extends Activity implements OnClickListener {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.weather_layout);
+        Log.d("Weather", "reStart!");
         // 初始化各个控件
+        message.what=0;
         weatherInfoLayout = (LinearLayout) findViewById(R.id.weather_info_layout);
         cityNameText = (TextView) findViewById(R.id.city_name);
         publishText = (TextView) findViewById(R.id.publish_text);
@@ -88,7 +98,24 @@ public class WeatherActivity extends Activity implements OnClickListener {
         advice = (TextView) findViewById(R.id.advice);
         currentDateText = (TextView) findViewById(R.id.current_date);
         String countyName = getIntent().getStringExtra("county_name");
-        //String countyCode = getIntent().getStringExtra("county_code");
+        pref = PreferenceManager.getDefaultSharedPreferences(this);
+        isOn = pref.getBoolean("remember_on", false);
+
+       t = pref.getFloat("Auto_time", 100000);
+        if (isOn) {
+            Intent intent = new Intent(this, AutoUpdateService.class);
+            intent.putExtra("updateTime", t);
+            startService(intent);
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    message.what=1;
+                    handler.sendMessage(message);
+
+                }
+            }).start();
+        }
+
         setting = (TextView) findViewById(R.id.set_update_time);
         switchCity = (Button) findViewById(R.id.switch_city);
         refreshWeather = (Button) findViewById(R.id.refresh_weather);
@@ -159,7 +186,7 @@ public class WeatherActivity extends Activity implements OnClickListener {
      */
     private void showWeather() {
 
-        SharedPreferences pref = PreferenceManager
+        pref = PreferenceManager
                 .getDefaultSharedPreferences(this);
         cityNameText.setText(pref.getString("city_name", ""));
         temp1Text.setText(pref.getString("temp1", ""));
@@ -172,28 +199,22 @@ public class WeatherActivity extends Activity implements OnClickListener {
         currentDateText.setText(pref.getString("current_date", ""));
         weatherInfoLayout.setVisibility(View.VISIBLE);
         cityNameText.setVisibility(View.VISIBLE);
-        Toast.makeText(this, "successful!", Toast.LENGTH_SHORT).show();
-        //Intent ifUpdate=getIntent();
-        //	boolean[] ifChoose=ifUpdate.getBooleanArrayExtra("ifchoose");
-        //	if(ifChoose[0]==true){
-        //	int[] updateTime=ifUpdate.getIntArrayExtra("updateTime");
-        Intent intent = new Intent(this, AutoUpdateService.class);
-        //	intent.putExtra("updateTime", updateTime[0]);
-        startService(intent);
-    }
+        Toast.makeText(this, "更新成功!", Toast.LENGTH_SHORT).show();
 
-    //}
+
+    }
 
     @Override
     public void onClick(View v) {
         switch (v.getId()) {
+            //切换城市
             case R.id.switch_city:
                 Intent intent = new Intent(this, ChooseAreaActivity.class);
                 intent.putExtra("from_weather_activity", true);
                 startActivity(intent);
                 finish();
                 break;
-
+            //更新数据
             case R.id.refresh_weather:
                 publishText.setText("同步中...");
                 SharedPreferences pref = PreferenceManager
@@ -203,47 +224,75 @@ public class WeatherActivity extends Activity implements OnClickListener {
                     queryWeather(countyName);
                 }
                 break;
+            //设置自动更新与否（是则设置时间）
             case R.id.set_update_time:
-                Intent updateIntent = new Intent(this, UpdateTimeActivity.class);
+                Intent updateIntent = new Intent(WeatherActivity.this, UpdateTimeActivity.class);
+                //1用来判断数据来源
                 startActivityForResult(updateIntent, 1);
             default:
                 break;
         }
 
     }
-//接收更改设置的参数
+
+    //接收更改设置自动更新的参数
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         switch (requestCode) {
+            //请求码是1则判断是否自动更新
             case 1:
 
                 if (resultCode == RESULT_OK) {
+                    editor = pref.edit();
+                    //接收返回的text
+                    tt = data.getStringExtra("autoUpdateTime");
+                    try {
+                        //转换成双精度浮点型
+                        t = Double.valueOf(tt).doubleValue();
+                        //保存自动更新的时间
+                        editor.putFloat("Auto_time",(float) t);
+                        editor.commit();
+                        t=pref.getFloat("Auto_time",100000);
 
-                    tt=data.getStringExtra("time");
-                 try{
-                     t=Double.valueOf(tt).doubleValue();
-
-                 }catch (NumberFormatException e){
-                     Toast.makeText(this,"格式错误！",Toast.LENGTH_SHORT).show();
-                 }
-                    //Toast.makeText(this,data.getStringExtra("time"),Toast.LENGTH_SHORT).show();
-                    isOn = data.getBooleanExtra("isOn", false);
-                    if (isOn == true) {
-                        new Thread(new Runnable() {
-                            @Override
-                            public void run() {
-                                try {
-                                    Thread.sleep((long) t * 60 * 60 * 1000);
-                                    Message message = new Message();
-                                    message.what = 110;
-                                    handler.sendMessage(message);
-                                } catch (InterruptedException e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                        }).start();
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(this, "格式错误！", Toast.LENGTH_SHORT).show();
                     }
-                }
+
+                        //接收时间和isChecked状态
+                        t=pref.getFloat("Auto_time",10000);
+                        isOn = pref.getBoolean("remember_on", false);
+                        //如果开启，保存当前设置
+                        if (isOn == true) {
+                            if(message.what==0) {
+                                Toast.makeText(this, "设置成功！", Toast.LENGTH_SHORT).show();
+                                //并开启自动更新线程，用于界面显示
+                                new Thread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                            message.what = 1;
+                                            handler.sendMessage(message);
+                                    }
+                                }).start();
+                            }else {
+                                Toast.makeText(this, "设置成功！", Toast.LENGTH_SHORT).show();
+                            }
+                            //是则开启服务自动更新，用于天气数据更新存储
+                            Intent intent = new Intent(this, AutoUpdateService.class);
+                            intent.putExtra("updateTime", t);
+                            startService(intent);
+
+                    }
+                }else{
+
+                        Intent intent = new Intent(this, AutoUpdateService.class);
+                        Toast.makeText(this, "设置成功！", Toast.LENGTH_SHORT).show();
+                        stopService(intent);
+                         t=10000000;
+
+                    }
+
+
+
                 break;
             default:
                 break;

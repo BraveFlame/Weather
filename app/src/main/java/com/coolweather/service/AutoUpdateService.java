@@ -1,4 +1,5 @@
 package com.coolweather.service;
+
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -15,28 +16,36 @@ import com.coolweather.utility.Utility;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+
 public class AutoUpdateService extends Service {
+    private double t = 0.001;
+
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+
     }
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        t = intent.getDoubleExtra("updateTime", 0.001);
         new Thread(new Runnable() {
             @Override
             public void run() {
                 updateWeather();
             }
         }).start();
+
         AlarmManager manager = (AlarmManager) getSystemService(ALARM_SERVICE);
-        int anHour = 1* 60 * 1000;// 延时更新后台
+        int anHour = (int) (t *60* 60 * 1000);// 延时更新后台
         //开启服务后广播onReceive执行
-        long triggerAtTime =  SystemClock.elapsedRealtime() + anHour;
+        long triggerAtTime = SystemClock.elapsedRealtime() + anHour;
         Intent i = new Intent(this, AutoUpdateReceiver.class);
         PendingIntent pi = PendingIntent.getBroadcast(this, 0, i, 0);
         manager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAtTime, pi);
         return super.onStartCommand(intent, flags, startId);
     }
+
     /*
      * 更新天气信息。
      */
@@ -53,6 +62,7 @@ public class AutoUpdateService extends Service {
                     Utility.handleWeatherResponse(AutoUpdateService.this, response);
 
                 }
+
                 @Override
                 public void onError(Exception e) {
                     e.printStackTrace();
